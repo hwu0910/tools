@@ -1,0 +1,64 @@
+#!/usr/bin/env -S bash
+
+prog=${0##*/}
+prog_path=$( cd "${0%/*}" ; pwd -P )
+project_name=""
+config_file_name="steno"
+
+usage="\
+Turns off XDebug for Docker compose project
+
+usage: ${prog} [-h] [-p PROJECT_NAME]
+
+       -p PROJECT_NAME  Name of the project.
+       -h               Shows Usage.
+"
+
+while getopts :hp: OPTION
+do
+    case ${OPTION} in
+    h)
+        echo "${usage}"
+        exit 0
+        ;;
+    p)
+        project_name=${OPTARG}
+        ;;
+    *)
+        echo "${usage}"
+        exit 1
+        ;;
+    esac
+done
+shift $((OPTIND - 1))
+
+conf_path="${prog_path}/../../${config_file_name}.yml"
+get_conf_value() {
+    ruby -r yaml -e "puts YAML.load(\$stdin.read)$1" < "${conf_path}"
+}
+
+if [[ -z ${project_name} ]]
+then
+    if [[ ! -e ${conf_path} ]]
+    then
+        echo "Configuration file not found. Ensure that the project is initialized properly."
+        exit 1
+    fi
+    project_name=$(get_conf_value '["project_name"]')
+fi
+
+config_path="/usr/local/etc/php/conf.d"
+
+php_container=$(docker ps --format '{{ .Names }}' \
+		--filter label=com.docker.compose.project=${project_name} \
+		--filter label=com.docker.compose.service=php-cms \
+		--filter label=com.docker.compose.container-number=1)
+
+
+docker exec --user root ${php_container} bash -c "ls ${config_path}/xdebug.ini" &>2 /dev/null
+
+if [[ $? == 0 ]]; then
+    echo "xdebug is ON"
+else
+    echo "xdebug is OFF"
+fi
