@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+verbose="false"
+
+if [[ $# < 1 ]];then
+    echo "$0 service_full_name [-v]"
+    echo -e "    service name: cnet-staging-[api|cms]_[fpm|nginx]; \n\t\t crons-staging_cms; \n\t\t staging-[feed|fly]_[fpm|nginx]"
+    exit
+elif [[ $# > 1 && $2 == '-v' ]]; then
+    verbose="true"
+fi
+
+svc_name=$1
+
+swarm_manager_name='rv-dev-swarm-manager-a-1'
+swarm_manager_ip=$(gcloud compute instances describe $swarm_manager_name --format='get(networkInterfaces[0].networkIP)')
+
+if [[ "$verbose" == "true" ]]; then
+    echo -e "swarm_manager: name: $swarm_manager_name; \t ip: $swarm_manager_ip"
+fi
+
+docker_svc_id=$(ssh $swarm_manager_ip docker service ls --filter name=$svc_name --format "{{.ID}}")
+if [[ "$verbose" == "true" ]]; then
+    echo -e "service name: $svc_name; \t id: $docker_svc_id"
+fi
+
+ssh $swarm_manager_ip docker service ps $docker_svc_id
