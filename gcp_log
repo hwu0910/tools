@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+project='i-cnet-dev'
+message=''
+
+if [[ $# < 1 ]];then
+    echo "$0 imageName [message] [prod|dev]"
+    exit
+elif [[ $# > 2 && $3 =~ 'prod' ]]; then
+    project='i-cnet-prod'
+elif [[ $# > 1 ]]; then
+    message=$2
+fi
+
+imageName=$1
+
+if [[ $message == '' ]]; then
+    cmd="gcloud logging read --project=$project --format='csv(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver AND jsonPayload.container.imageName:$imageName\""
+else
+    cmd="gcloud logging read --project=$project --format='csv(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver AND jsonPayload.container.imageName:$imageName AND jsonPayload.message:\"$message\"\""
+fi
+
+echo -e "==> $cmd\n"
+
+eval $cmd
