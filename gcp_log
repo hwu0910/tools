@@ -4,15 +4,21 @@ project='i-cnet-dev'
 message=''
 
 if [[ $# < 1 ]];then
-    echo "$0 imageName [message] [prod|dev]"
+    echo "$0 imageName [dev|prod] [message]"
     exit
-elif [[ $# > 2 && $3 =~ 'prod' ]]; then
-    project='i-cnet-prod'
-elif [[ $# > 1 ]]; then
-    message=$2
+else
+    imageName=$1
+
+    if [[ $# > 1 && $2 =~ 'prod' ]]; then
+        project='i-cnet-prod'
+    fi
+
+    if [[ $# > 2 ]]; then
+        message=$3
+    fi
 fi
 
-imageName=$1
+echo -e "Current UTC time: `date -u` \n"
 
 if [[ $message == '' ]]; then
     cmd="gcloud logging read --project=$project --format='csv(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver AND jsonPayload.container.imageName:$imageName\""
