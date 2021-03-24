@@ -1,26 +1,35 @@
 #!/usr/bin/env bash
 
+# get gcloud i-cnet-[dev|prod] log by image name with optional message filter
+# Henry Wu 03/2021
+
+usage="Usage: `basename $0` imageName [-p [dev|prod]] [-m message]"
+
+if [[ $# < 1 || $1 = -* ]];then
+    echo "$usage"
+    exit
+fi
+
+imageName=$1; shift
+
 project='i-cnet-dev'
 message=''
 
-if [[ $# < 1 ]];then
-    echo "$0 imageName [dev|prod] [message]"
-    exit
-else
-    imageName=$1
-
-    if [[ $# > 1 && $2 =~ 'prod' ]]; then
-        project='i-cnet-prod'
-    fi
-
-    if [[ $# > 2 ]]; then
-        message=$3
-    fi
-fi
+while getopts :p:m:h flag; do
+    case "${flag}" in
+        p) target=${OPTARG}
+            if [[ "$target" =~ 'prod' ]]; then
+                project='i-cnet-prod'
+            fi
+            ;;
+        m) message=${OPTARG};;
+        h) echo "$usage"; exit;;
+    esac
+done
 
 echo -e "Current UTC time: `date -u` \n"
 
-if [[ $message == '' ]]; then
+if [[ -z "$message" ]]; then
     cmd="gcloud logging read --project=$project --format='csv(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver AND jsonPayload.container.imageName:$imageName\""
 else
     cmd="gcloud logging read --project=$project --format='csv(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver AND jsonPayload.container.imageName:$imageName AND jsonPayload.message:\"$message\"\""
