@@ -3,10 +3,10 @@
 # gcloud logging read by project, and optional container && message filters
 # Henry Wu 04/2021
 
-usage="Usage: `basename $0` [-c containerName] [-m message] [-p i-[cnet|b2b]-[dev|prod]]\n \
-    \t-c container(default: cms_fpm or cms_nginx): [api|cms]_[fpm|nginx], crons; support And/Or w/ ()\n \
-    \t-m message(default: error): support AND/oR w/ (), e.g. 'error And cms_4 AND ( video or article )' \n \
-    \t-p project(default: i-cnet-dev): i-[cnet|b2b]-[dev|prod]"
+usage="Usage: `basename $0` [-p i-cnet-prod] [-c 'cms_fpm or cms_nginx'] [-m 'error']\n \
+    \t-p project: i-[cnet|b2b]-[dev|prod] \n \
+    \t-c container: [api|cms]_[fpm|nginx], crons; support And/Or w/ ()\n \
+    \t-m message: support AND/oR w/ (), e.g. 'error And cms_4 AND ( video or article )'"
 
 parse_input() {
     [[ "$1" == "container" ]] && key="jsonPayload.container.name" || key="jsonPayload.message"
@@ -34,7 +34,7 @@ container='AND (jsonPayload.container.name: "cms_fpm" OR jsonPayload.container.n
 
 message='AND (jsonPayload.message: "error")'
 
-project='i-cnet-dev'
+project='i-cnet-prod'
 limit=5
 while getopts :p:m:c:l:h flag; do
     case "${flag}" in
@@ -48,9 +48,8 @@ done
 
 echo -e "Current UTC time: `date -u` \n"
 
-cmd="gcloud logging read --project=$project --format='json(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver"
-
-cmd="$cmd $container $message\" --limit $limit"
+cmd="gcloud logging read"
+cmd="$cmd --project=$project \"resource.type=gce_instance $container $message logName=projects/$project/logs/gcplogs-docker-driver\" --format='json(jsonPayload.container.name,jsonPayload.message)' --freshness=1h --limit $limit"
 
 echo -e "==> $cmd\n"
 
