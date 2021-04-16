@@ -11,22 +11,29 @@ usage="Usage: `basename $0` [-p i-cnet-prod] [-c 'cms_fpm or cms_nginx'] [-m 'er
 parse_input() {
     [[ "$1" == "container" ]] && key="jsonPayload.container.name" || key="jsonPayload.message"
 
-    read -r -a array <<< "$2"
+    local orig_nocasematch=$(shopt -p nocasematch; true)
+    shopt -s nocasematch
+
     res=""
-    for element in "${array[@]}"
-    do
-        local orig_nocasematch=$(shopt -p nocasematch; true)
-        shopt -s nocasematch
-        if [[ $element == "OR" || $element == "AND" ]]; then
-            res+=" ${element^^} "
-        elif [[ $element == "(" || $element == ")" ]]; then
-            res+="${element}"
-        else
-            res+="$key: \"$element\""
-        fi
-        $orig_nocasematch
-        
-    done
+    if [[ ! ("$2" =~ " AND " || "$2" =~ " OR ") ]]; then # if has space, escape needed when call this tool
+        res="$key: \"$2\""
+    else
+        read -r -a array <<< "$2"
+        for element in "${array[@]}"
+        do
+            
+            if [[ $element == "OR" || $element == "AND" ]]; then
+                res+=" ${element^^} "
+            elif [[ $element == "(" || $element == ")" ]]; then
+                res+="${element}"
+            else
+                res+="$key: \"$element\""
+            fi
+        done
+    fi
+
+    $orig_nocasematch
+    
     echo "AND ($res)"
 }
 
@@ -49,7 +56,7 @@ done
 echo -e "Current UTC time: `date -u` \n"
 
 cmd="gcloud logging read"
-cmd="$cmd --project=$project \"resource.type=gce_instance $container $message logName=projects/$project/logs/gcplogs-docker-driver\" --format='json(jsonPayload.container.name,jsonPayload.message)' --freshness=1h --limit $limit"
+cmd="$cmd --project=$project \"resource.type=gce_instance $container $message AND logName=projects/$project/logs/gcplogs-docker-driver\" --format='json(jsonPayload.container.name,jsonPayload.message)' --freshness=1h --limit $limit"
 
 echo -e "==> $cmd\n"
 
