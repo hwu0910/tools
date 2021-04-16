@@ -1,40 +1,93 @@
 #!/usr/bin/env bash
 
-# get gcloud i-cnet-[dev|prod] log by image name with optional message filter
-# Henry Wu 03/2021
+# gcloud logging read by project, and optional container && message filters
+# Henry Wu 04/2021
 
-usage="Usage: `basename $0` imageName [-p [dev|prod]] [-m message]"
+usage="Usage: `basename $0` [-c containerName] [-m message] [-p i-[cnet|b2b]-[dev|prod]]\n \
+    \t-c container(default: cms_fpm or cms_nginx): [api|cms]_[fpm|nginx], crons; support And/Or w/ ()\n \
+    \t-m message(default: error): support AND/oR w/ (), e.g. 'error And cms_4 AND ( video or article )' \n \
+    \t-p project(default: i-cnet-dev): i-[cnet|b2b]-[dev|prod]"
 
-if [[ $# < 1 || $1 = -* ]];then
-    echo "$usage"
-    exit
-fi
+parse_input() {
+    [[ "$1" == "container" ]] && key="jsonPayload.container.name" || key="jsonPayload.message"
 
-imageName=$1; shift
+    read -r -a array <<< "$2"
+    res=""
+    for element in "${array[@]}"
+    do
+        local orig_nocasematch=$(shopt -p nocasematch; true)
+        shopt -s nocasematch
+        if [[ $element == "OR" || $element == "AND" ]]; then
+            res+=" ${element^^} "
+        elif [[ $element == "(" || $element == ")" ]]; then
+            res+="${element}"
+        else
+            res+="$key: \"$element\""
+        fi
+        $orig_nocasematch
+        
+    done
+    echo "AND ($res)"
+}
+
+container='AND (jsonPayload.container.name: "cms_fpm" OR jsonPayload.container.name: "cms_nginx")'
+
+message='AND (jsonPayload.message: "error")'
 
 project='i-cnet-dev'
-message=''
-
-while getopts :p:m:h flag; do
+limit=5
+while getopts :p:m:c:l:h flag; do
     case "${flag}" in
-        p) target=${OPTARG}
-            if [[ "$target" =~ 'prod' ]]; then
-                project='i-cnet-prod'
-            fi
-            ;;
-        m) message=${OPTARG};;
-        h) echo "$usage"; exit;;
+        p) project=${OPTARG} ;;
+	    c) container=`parse_input "container" "${OPTARG}"` ;;
+        m) message=`parse_input "message" "${OPTARG}"` ;;
+	    l) limit=${OPTARG} ;;
+        h) echo -e "$usage"; exit ;;
     esac
 done
 
 echo -e "Current UTC time: `date -u` \n"
 
-if [[ -z "$message" ]]; then
-    cmd="gcloud logging read --project=$project --format='csv(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver AND jsonPayload.container.imageName:$imageName\""
-else
-    cmd="gcloud logging read --project=$project --format='csv(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver AND jsonPayload.container.imageName:$imageName AND jsonPayload.message:\"$message\"\""
-fi
+cmd="gcloud logging read --project=$project --format='json(jsonPayload.container.name,jsonPayload.message)' --freshness=1h \"resource.type=gce_instance logName=projects/$project/logs/gcplogs-docker-driver"
+
+cmd="$cmd $container $message\" --limit $limit"
 
 echo -e "==> $cmd\n"
 
 eval $cmd
+
+# Based on: https://console.cloud.google.com/logs/viewer?project=i-b2b-prod&authuser=1&organizationId=1015867442176&minLogLevel=0&expandAll=false&customFacets=&limitCustomFacetWidth=true&interval=CUSTOM&resource=gce_instance&scrollTimestamp=2021-04-16T02:06:12.060062525Z&pli=1&dateRangeEnd=2021-04-16T02:13:15.318Z&dateRangeStart=2021-04-16T01:13:15.318Z&timestamp=2021-04-16T12:13:40.893000000Z&advancedFilter=resource.type%3D%22gce_instance%22%0A(jsonPayload.container.name:%20%22cms_fpm%22%20OR%20jsonPayload.container.name:%20%22cms_nginx%22)%0AjsonPayload.message:%20%22video%22%0AjsonPayload.message:%20%22error%22
+# resource.type="gce_instance"
+# (jsonPayload.container.name: "cms_fpm" OR jsonPayload.container.name: "cms_nginx")
+# jsonPayload.message: "video"
+# jsonPayload.message: "error"
+#
+# {
+#  insertId: "e5gmpdg3o83dob"  
+#  jsonPayload: {
+#   container: {
+#    created: "2021-04-16T01:44:05.199076833Z"    
+#    id: "e59ce58bfd2b5356175b054ebc34aefd2b687c4e02cea0af444699dc4ecd6b60"    
+#    imageId: "sha256:6c0833dde599b1fd4ec2f68d498434770eb1357e26541f0993bfb88e7e9b0855"    
+#    imageName: "us.gcr.io/i-cmg-tools/prism-cmg/cms/fpm:prod-cms-31a0b7@sha256:3b0e4ee3bdbef0231ca008b9f2ae02adc13874629b84579ffb0a40c0cf8953b0"    
+#    name: "/techrepublic-prod-cms_fpm.1.tobi1leetyeu11tyn32n45x2s"    
+#   }
+#   instance: {
+#    id: "2077858271372384921"    
+#    name: "rv-b2b-prod-swarm-worker-a-1"    
+#    zone: "us-central1-a"    
+#   }
+#   message: "[2021-04-16 02:06:11] videorobot.server.GCP.ERROR: Request error - Failed to connect to videorobot-gcp.cbs.com port 443: Operation timed out {"url":"https://videorobot-gcp.cbs.com/api/get_files_gcs.php?client_id=105071633270389621070&skipDotFiles=false&bu=techrepublic&q=i-cnet-video-source%2Fb2b%2Fprod_cms_4%2F2021%2F04%2F16&viewType=json","method":"GET","body":null,"options":{"13":180},"code":7} {"server":{"base_url":"https://cms.techrepublic.com","environment":"prod_cms_4","hostname":"e59ce58bfd2b","ip_address":"10.0.11.45","is_cli":false,"process_id":66}}"   
+#  }
+#  logName: "projects/i-b2b-prod/logs/gcplogs-docker-driver"  
+#  receiveTimestamp: "2021-04-16T02:06:13.045950912Z"  
+#  resource: {
+#   labels: {
+#    instance_id: "2077858271372384921"    
+#    project_id: "i-b2b-prod"    
+#    zone: "us-central1-a"    
+#   }
+#   type: "gce_instance"   
+#  }
+#  timestamp: "2021-04-16T02:06:12.060062525Z"  
+# }
