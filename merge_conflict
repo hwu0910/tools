@@ -1,20 +1,13 @@
 #!/usr/bin/env bash
 
-usage="`basename $0` target_branch [dryrun[Y]]\n \
-	\ttarget_branch: eg. qa, alpha, stage, master\n"
+usage="`basename $0` target_branch \n \
+	\ttarget_branch: eg. qa, alpha, stage, main\n"
 
 if [[ $# < 1 ]]; then
     echo -e $usage
     exit
 else
-    target_branch=$1   # say qa, alpha, stage, master
-fi
-
-dryrun="Y"
-if [[ $2 == "N" ]]; then
-    dryrun="N"
-else
-    echo "-----dryrun-----"
+    target_branch=$1   # say qa, alpha, stage, main
 fi
 
 cur_branch=$(git branch --show-current)
@@ -39,36 +32,18 @@ else
     echo "Merging [$cur_branch] --> [$target_branch]..."
 fi
 
-echo "#1. create New branch from current branch: git checkout -b $cur_branch-$target_branch"
+echo -e "\n#1. create New branch from current branch: git checkout -b $cur_branch-$target_branch"
 git checkout -b $cur_branch-$target_branch
 
-echo "#2. pull origin from target branch: git pull origin $target_branch"
+echo -e "\n#2. pull origin from target branch: git pull origin $target_branch"
 git pull origin $target_branch
 
-echo "#3. resolve conflicts between $cur_branch vs $target_branch: git mergetool"
+echo -e "\n#3. resolve conflicts between $cur_branch vs $target_branch: git mergetool"
 git mergetool
 
-if [[ $dryrun == "N" ]]; then
-    echo -n "WARN: conflicts resolved? (yes/[no])?"
-    read ans
-else
-    ans='no'
-fi
+echo -e "\nDO Make sure conflicts resolved properly, then"
 
-if [[ $ans == "yes" ]]; then
-    echo "#4. commit resolved conflicts to new branch: git commit -am \"$cur_branch: resolve conflicts while merge to $target_branch\""
-    if [[ $dryrun == "N" ]]; then
-        git commit -am "$cur_branch: resolve conflicts while merge to $target_branch"
-    fi
+echo -e "\n#4. commit resolved conflicts to new branch: git commit -am \"$cur_branch: resolve conflicts while merge to $target_branch\""
+echo -e "\n#5. push new branch: git push --set-upstream origin $cur_branch-$target_branch"
+echo -e "\n#6. create PR of '$cur_branch-$target_branch -> $target_branch' at https://github.com/cbsi-cmg/prism/compare/$target_branch...$cur_branch-$target_branch"
 
-    echo "#5. push new branch: git push --set-upstream origin $cur_branch-$target_branch"
-    if [[ $dryrun == "N" ]]; then
-        git push --set-upstream origin $cur_branch-$target_branch
-    fi
-else
-    echo "Make sure conflicts resolved properly, then"
-    echo "#4. commit resolved conflicts to new branch: git commit -am \"$cur_branch: resolve conflicts while merge to $target_branch\""
-    echo "#5. push new branch: git push --set-upstream origin $cur_branch-$target_branch"
-fi
-
-echo "#6. create PR of '$cur_branch-$target_branch -> $target_branch' at https://github.com/cbsi-cmg/prism/tree/$cur_branch-$target_branch"
