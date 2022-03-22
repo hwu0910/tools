@@ -1,25 +1,25 @@
 #!/usr/bin/env bash
 
 usage="`basename $0` target_branch \n \
-	\ttarget_branch: eg. qa, alpha, stage, main\n"
+  (target_branch: eg. qa, alpha, stage, main)\n"
 
 if [[ $# < 1 ]]; then
     echo -e $usage
     exit
 else
-    target_branch=$1   # say qa, alpha, stage, main
+    target_branch=$1
 fi
 
 cur_branch=$(git branch --show-current)
 if [[ $? == 0 ]]; then
-    echo -n "Is cur_branch [$cur_branch] correct (Y/input_branch)? "; read ans
+    echo -n "Is current branch [$cur_branch] correct (Y/input_branch)? "; read ans
     if [[ $ans != 'Y' && $ans != 'y' ]]; then
-	git checkout $ans
+        git checkout $ans
         if [[ $? == 0 ]]; then
-	    cur_branch=$ans
-	else
-	    exit -2
-	fi
+            cur_branch=$ans
+        else
+            exit -1
+        fi
     fi
 else
     exit -1
@@ -41,9 +41,22 @@ git pull origin $target_branch
 echo -e "\n#3. resolve conflicts between $cur_branch vs $target_branch: git mergetool"
 git mergetool
 
-echo -e "\nDO Make sure conflicts resolved properly, then"
+pr_url="https://github.com/cbsi-cmg/prism/compare/$target_branch...$cur_branch-$target_branch"
 
-echo -e "\n#4. commit resolved conflicts to new branch: git commit -am \"$cur_branch: resolve conflicts while merge to $target_branch\""
-echo -e "\n#5. push new branch: git push --set-upstream origin $cur_branch-$target_branch"
-echo -e "\n#6. create PR of '$cur_branch-$target_branch -> $target_branch' at https://github.com/cbsi-cmg/prism/compare/$target_branch...$cur_branch-$target_branch"
+echo -n "⚠️ ALL Conflicts resolved properly?⚠️  (type 'YES' to confirm!)"; read ans
+if [[ $ans == 'YES' ]]; then
+    echo -e "\n#4. commit resolved conflicts to new branch:"
+    git commit -am "$cur_branch: resolve conflicts while merge to $target_branch"
 
+    echo -e "\n#5. push new branch: "
+    git push --set-upstream origin $cur_branch-$target_branch
+
+    echo -e "\n#6. create PR of '$cur_branch-$target_branch -> $target_branch' at $pr_url"
+    open $pr_url
+else
+    echo -e "\nDO Make sure conflicts resolved properly, then:"
+
+    echo -e "\n#4. commit resolved conflicts to new branch: git commit -am \"$cur_branch: resolve conflicts while merge to $target_branch\""
+    echo -e "\n#5. push new branch: git push --set-upstream origin $cur_branch-$target_branch"
+    echo -e "\n#6. create PR of '$cur_branch-$target_branch -> $target_branch' at pr_url"
+fi
