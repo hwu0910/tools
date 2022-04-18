@@ -41,7 +41,8 @@ git pull origin $target_branch
 echo -e "\n#3. resolve conflicts between $cur_branch vs $target_branch: git mergetool"
 git mergetool
 
-pr_url="https://github.com/cbsi-cmg/prism/compare/$target_branch...$cur_branch-$target_branch"
+repo_path=$(git config --get remote.origin.url|cut -d: -f2|cut -d. -f1)
+pr_url="https://github.com/${repo_path}/compare/$target_branch...$cur_branch-$target_branch"
 
 echo -n "⚠️ ALL Conflicts resolved properly?⚠️  (type 'YES' to confirm!)"; read ans
 if [[ $ans == 'YES' ]]; then
